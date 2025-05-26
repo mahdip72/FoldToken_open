@@ -3,6 +3,7 @@ import os
 import torch
 import argparse
 import tqdm
+import csv
 from omegaconf import OmegaConf
 from model_interface import MInterface
 from src.chroma.data import Protein
@@ -20,6 +21,11 @@ def load_model(config_path, checkpoint_path, device='cpu'):
     print(f"Loading checkpoint from {checkpoint_path}")
     print(f"Using device: {device}")
     checkpoint = torch.load(checkpoint_path, map_location=torch.device(device))
+    # adjust keys if wrapped in DataParallel
+    for key in list(checkpoint.keys()):
+        if '_forward_module.' in key:
+            checkpoint[key.replace('_forward_module.', '')] = checkpoint[key]
+            del checkpoint[key]
 
     model.load_state_dict(checkpoint, strict=False)
     model = model.to(device)
@@ -31,7 +37,7 @@ def encode_pdb_to_tokens(model, pdb_path, device='cpu', level=8):
     """Encode a PDB file into tokens using FoldToken4 on given device"""
     protein = Protein(pdb_path, device=device)
     # determine number of residues via XCS representation
-    X, C, S = protein.sys.to_XCS()
+    X, C, S = protein.to_XCS()
 
     with torch.no_grad():
         vq_code = model.encode_protein(protein, level=level)[1]
@@ -63,15 +69,23 @@ if __name__ == '__main__':
     pdb_files = [os.path.join(args.pdb_dir, f) for f in os.listdir(args.pdb_dir) if f.lower().endswith('.pdb')]
     results = []
     for pdb_path in tqdm.tqdm(pdb_files, desc="Encoding PDBs", unit="file"):
+        basename = os.path.basename(pdb_path)
         try:
-            codes = encode_pdb_to_tokens(model, pdb_path, device)
-            token_list = codes.cpu().numpy().tolist() if hasattr(codes, 'cpu') else list(codes)
-            results.append((os.path.basename(pdb_path), token_list))
+            protein = Protein(pdb_path, device=device)
+            X, C, S = protein.to_XCS()
         except Exception as e:
-            print(f"Skipped {os.path.basename(pdb_path)}: {e}")
+            print(f"Skipped {basename}: load error {e}")
+            continue
+        # filter short or highly masked proteins
+        if X.shape[1] < 5 or (C != -1).sum() < 5:
+            print(f"Skipped {basename}: too few residues")
+            continue
+        with torch.no_grad():
+            vq_code = model.encode_protein(protein, level=8)[1]
+        token_list = vq_code.cpu().numpy().tolist() if hasattr(vq_code, 'cpu') else list(vq_code)
+        results.append((basename, token_list))
 
-    # Write CSV
-    import csv
+    # write results
     with open(args.output, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
         writer.writerow(['pdb_file', 'tokens'])
