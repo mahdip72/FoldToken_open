@@ -70,7 +70,7 @@ if __name__ == '__main__':
         for row in tqdm.tqdm(reader, total=sum(1 for _ in open(args.token_csv))):
             name = row.get('pdb_file') or row.get('pdb')
             tokens = [int(x) for x in row['tokens'].split()]
-            out_name = os.path.splitext(name)[0] + '_pred.pdb'
+            out_name = os.path.splitext(name)[0] + '.pdb'
             output_path = os.path.join(args.output_dir, out_name)
             if os.path.exists(output_path):
                 print(f"{output_path} exists, skip")
