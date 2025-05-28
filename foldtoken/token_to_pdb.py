@@ -2,6 +2,8 @@ import os
 import torch
 import argparse
 import csv
+
+import tqdm
 from omegaconf import OmegaConf
 from model_interface import MInterface
 
@@ -65,7 +67,7 @@ if __name__ == '__main__':
 
     with open(args.token_csv, newline='') as f:
         reader = csv.DictReader(f)
-        for row in reader:
+        for row in tqdm.tqdm(reader, total=sum(1 for _ in open(args.token_csv))):
             name = row.get('pdb_file') or row.get('pdb')
             tokens = [int(x) for x in row['tokens'].split()]
             out_name = os.path.splitext(name)[0] + '_pred.pdb'
@@ -75,7 +77,7 @@ if __name__ == '__main__':
                 continue
             try:
                 tokens_to_pdb(model, tokens, output_path, level=args.level)
-                print(f"Saved {output_path}")
+                # print(f"Saved {output_path}")
             except Exception as e:
                 print(f"Failed {name}: {e}")
 
