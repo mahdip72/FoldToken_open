@@ -71,13 +71,16 @@ if __name__ == '__main__':
             name = row.get('pdb_file') or row.get('pdb')
             tokens = [int(x) for x in row['tokens'].split()]
             out_name = os.path.splitext(name)[0] + '.pdb'
-            output_path = os.path.join(args.output_dir, out_name)
-            if os.path.exists(output_path):
-                print(f"{output_path} exists, skip")
-                continue
+            # Ensure unique filename by appending a counter if needed
+            candidate = out_name
+            root, ext = os.path.splitext(out_name)
+            counter = 1
+            while os.path.exists(os.path.join(args.output_dir, candidate)):
+                candidate = f"{root}_{counter}{ext}"
+                counter += 1
+            output_path = os.path.join(args.output_dir, candidate)
             try:
                 tokens_to_pdb(model, tokens, output_path, level=args.level)
                 # print(f"Saved {output_path}")
             except Exception as e:
                 print(f"Failed {name}: {e}")
-
