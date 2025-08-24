@@ -66,7 +66,12 @@ if __name__ == '__main__':
     model = load_model(config_path, checkpoint_path, device)
 
     # Gather PDB files
-    pdb_files = [os.path.join(args.pdb_dir, f) for f in os.listdir(args.pdb_dir) if f.lower().endswith('.pdb')]
+    # Recursively collect .pdb files from the given directory and all subdirectories
+    pdb_files = []
+    for root, _, files in os.walk(args.pdb_dir):
+        for f in files:
+            if f.lower().endswith('.pdb'):
+                pdb_files.append(os.path.join(root, f))
     results = []
     for pdb_path in tqdm.tqdm(pdb_files, desc="Encoding PDBs", unit="file"):
         basename = os.path.basename(pdb_path)
@@ -92,4 +97,3 @@ if __name__ == '__main__':
         for name, tlist in results:
             writer.writerow([name, ' '.join(map(str, tlist))])
     print(f"Processed {len(results)}/{len(pdb_files)} files. Tokens saved to {args.output}")
-
